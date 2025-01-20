@@ -3,3 +3,6 @@
 
 # Alfred individual prefs
 prefs.plist
+
+# idea
+.idea/

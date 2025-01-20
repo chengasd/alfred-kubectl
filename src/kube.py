@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-
+import inspect
 # python3 native
 import sys, json, os
 
@@ -38,6 +38,13 @@ def get_namespaces():
   namespaces = api.list_namespace()
 
   items = []
+  # add option for sqb
+  title_sqb = "sqb"
+  subtitle_sqb = 'sqb'
+  arg_sqb = 'sqb'
+  icon_sqb = 'ns'
+  items.append(generate_dict(title_sqb,subtitle_sqb,arg_sqb,icon_sqb))
+
   # add option for all namespaces (-A)
   title = 'all namespaces'
   subtitle = 'all namespaces'
@@ -433,5 +440,73 @@ def generate_dict(title,subtitle,arg,icon):
 
   return tempdict
 
+def get_pods_by_label(query):
+  # generate list of pods in namespace based on label query
+
+  # choosen namespace
+  namespace = os.getenv('namespace')
+  namespace = 'sqb'
+  # get pods
+  kubernetes_config()
+  api = client.CoreV1Api()
+  label_selector = f"app={query}"
+  if namespace == 'all_ns':
+    pods = api.list_pod_for_all_namespaces(label_selector=label_selector)
+  else:
+    pods = api.list_namespaced_pod(namespace, label_selector=label_selector)
+
+  items = []
+  for pod in pods.items:
+    title = pod.metadata.name
+    icon = 'pod'
+    if namespace == 'all_ns':
+      arg = '{}/{}'.format(pod.metadata.name, pod.metadata.namespace)
+      subtitle = 'Status: {}, Namespace: {}, Restarts: {}'.format(pod.status.phase, pod.metadata.namespace,
+                                                                    pod.status.container_statuses[0].restart_count)
+    else:
+      arg = pod.metadata.name
+      subtitle = 'Status: {}, Restarts: {}'.format(pod.status.phase, pod.status.container_statuses[0].restart_count)
+    items.append(generate_dict(title, subtitle, arg, icon))
+
+  if len(items) == 0:
+    if namespace == 'all_ns':
+      title = 'No pods found with label {}'.format(query)
+      subtitle = 'No pods found with label {}'.format(query)
+      arg = 'none/none'
+    else:
+      title = 'No pods in {} with label {}'.format(namespace, query)
+      subtitle = 'No pods in {} with label {}'.format(namespace, query)
+      arg = 'none'
+    icon = 'pod'
+    items.append(generate_dict(title, subtitle, arg, icon))
+
+  # pass output to Alfred
+  sys.stdout.write(generate_json(items))
+
+
 if __name__ == '__main__':
-    globals()[sys.argv[1]]()
+    # globals()[sys.argv[1]]()
+    if len(sys.argv) < 2:
+      print("Usage: python script.py <function_name> [args...]")
+      sys.exit(1)
+
+    function_name = sys.argv[1]
+    args = sys.argv[2:]
+
+    if function_name in globals():
+      function_to_call = globals()[function_name]
+      if callable(function_to_call):
+        # 获取函数的参数数量
+        sig = inspect.signature(function_to_call)
+        num_params = len(sig.parameters)
+
+        # 检查传递的参数数量是否匹配
+        if len(args) != num_params:
+          print(f"Function {function_name} requires {num_params} arguments, but {len(args)} were provided.")
+          sys.exit(1)
+
+        function_to_call(*args)
+      else:
+        print(f"{function_name} is not callable.")
+    else:
+      print(f"Function {function_name} not found.")
